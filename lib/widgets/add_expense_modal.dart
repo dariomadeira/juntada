@@ -2,15 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../theme.dart';
+import '../main.dart';
+import '../models.dart';
+import 'master_diner_sheet.dart';
 
 class AddExpenseModal extends StatefulWidget {
-  final List<String> existingNames;
+  final JuntadaProvider provider;
   final Function(String name, double amount, String description) onAdd;
+  final Expense? initialExpense;
 
   const AddExpenseModal({
     super.key,
     required this.onAdd,
-    required this.existingNames,
+    required this.provider,
+    this.initialExpense,
   });
 
   @override
@@ -25,12 +30,38 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
   final _formKey = GlobalKey<FormState>();
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.initialExpense != null) {
+      _nameController.text = widget.initialExpense!.userName;
+      _amountController.text = NumberFormat.decimalPattern('es_AR').format(widget.initialExpense!.amount.toInt());
+      _descController.text = widget.initialExpense!.description;
+    }
+  }
+
+  @override
   void dispose() {
     _nameController.dispose();
     _amountController.dispose();
     _descController.dispose();
     _nameFocusNode.dispose();
     super.dispose();
+  }
+
+  void _showSelector() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => MasterDinerSheet(
+        provider: widget.provider,
+        onSelected: (user) {
+          setState(() {
+            _nameController.text = user.name;
+          });
+        },
+      ),
+    );
   }
 
   @override
@@ -64,43 +95,11 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
             ),
             const SizedBox(height: 24),
             Text(
-              'Nuevo gasto',
+              widget.initialExpense != null ? 'Editar gasto' : 'Nuevo gasto',
               style: Theme.of(context).textTheme.headlineMedium,
             ),
             const SizedBox(height: 24),
-            if (widget.existingNames.isNotEmpty) ...[
-              const Text(
-                'Sugerencias',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: JuntadaTheme.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 40,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: widget.existingNames.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 8),
-                  itemBuilder: (context, index) {
-                    final name = widget.existingNames[index];
-                    return ActionChip(
-                      label: Text(name),
-                      backgroundColor: JuntadaTheme.primary.withValues(alpha: 0.1),
-                      labelStyle: const TextStyle(color: JuntadaTheme.primary, fontSize: 13),
-                      side: BorderSide.none,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                      onPressed: () {
-                        setState(() => _nameController.text = name);
-                      },
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
+            
             _buildTextField(
               controller: _nameController,
               focusNode: _nameFocusNode,
@@ -108,7 +107,14 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
               hint: '¿Quién gastó?',
               icon: Icons.person_outline_rounded,
               validator: (v) => v == null || v.isEmpty ? 'Requerido' : null,
-              suggestions: widget.existingNames,
+              suggestions: widget.initialExpense != null ? null : widget.provider.users.map((u) => u.name).toList(),
+              readOnly: widget.initialExpense != null,
+              suffixIcon: widget.initialExpense != null 
+                ? null 
+                : IconButton(
+                    onPressed: _showSelector,
+                    icon: const Icon(Icons.group_add_outlined, color: JuntadaTheme.primary),
+                  ),
             ),
             const SizedBox(height: 16),
             Row(
@@ -174,6 +180,8 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
     String? Function(String?)? validator,
     List<String>? suggestions,
     List<TextInputFormatter>? inputFormatters,
+    Widget? suffixIcon,
+    bool readOnly = false,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -209,6 +217,8 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
                 validator: validator,
                 keyboardType: keyboardType,
                 inputFormatters: inputFormatters,
+                suffixIcon: suffixIcon,
+                readOnly: readOnly,
               );
             },
             optionsViewBuilder: (context, onSelected, options) {
@@ -250,6 +260,8 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
             validator: validator,
             keyboardType: keyboardType,
             inputFormatters: inputFormatters,
+            suffixIcon: suffixIcon,
+            readOnly: readOnly,
           ),
       ],
     );
@@ -263,6 +275,8 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
     TextInputType? keyboardType,
     String? Function(String?)? validator,
     List<TextInputFormatter>? inputFormatters,
+    Widget? suffixIcon,
+    bool readOnly = false,
   }) {
     return TextFormField(
       controller: controller,
@@ -270,13 +284,15 @@ class _AddExpenseModalState extends State<AddExpenseModal> {
       validator: validator,
       keyboardType: keyboardType,
       inputFormatters: inputFormatters,
-      style: const TextStyle(color: Colors.white),
+      readOnly: readOnly,
+      style: TextStyle(color: readOnly ? Colors.white.withValues(alpha: 0.5) : Colors.white),
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.2)),
-        prefixIcon: Icon(icon, color: JuntadaTheme.primary.withValues(alpha: 0.5), size: 20),
+        prefixIcon: Icon(icon, color: (readOnly ? JuntadaTheme.textSecondary : JuntadaTheme.primary).withValues(alpha: 0.5), size: 20),
+        suffixIcon: suffixIcon,
         filled: true,
-        fillColor: Colors.white.withValues(alpha: 0.05),
+        fillColor: readOnly ? Colors.white.withValues(alpha: 0.02) : Colors.white.withValues(alpha: 0.05),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,

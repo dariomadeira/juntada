@@ -71,6 +71,23 @@ class Expense {
       date: DateTime.parse(map['date']),
     );
   }
+
+  Expense copyWith({
+    String? userId,
+    String? userName,
+    double? amount,
+    String? description,
+    DateTime? date,
+  }) {
+    return Expense(
+      id: id,
+      userId: userId ?? this.userId,
+      userName: userName ?? this.userName,
+      amount: amount ?? this.amount,
+      description: description ?? this.description,
+      date: date ?? this.date,
+    );
+  }
 }
 
 class Transaction {
